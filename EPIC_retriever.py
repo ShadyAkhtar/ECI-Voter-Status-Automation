@@ -6,6 +6,12 @@ from selenium.webdriver.chrome.service import Service
 import pandas as pd
 from selenium.webdriver.support.wait import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
+from dotenv import load_dotenv
+import os
+
+USER = os.getenv("USER")
+print("🪪 ~ USER:", USER)
+PASSWORD = os.getenv("PASSWORD")
 
 # create chromeoptions instance
 options = webdriver.ChromeOptions()
@@ -27,6 +33,33 @@ driver = webdriver.Chrome(service=service, options=options)
 
 # driver = webdriver.Chrome()
 print("Opening the browser")
+
+
+try:
+    driver.get("https://voters.eci.gov.in/login")
+    user = WebDriverWait(driver, 5).until(
+        EC.presence_of_element_located(
+            (
+                By.XPATH,
+                '//*[@id="loginId"]/div[1]/div[2]/div[2]/div[1]/form[1]/div[1]/div[3]/div[1]/div[2]/div[1]/input[1]',
+            )
+        )
+    )
+    password = WebDriverWait(driver, 2).until(
+        EC.presence_of_element_located(
+            (
+                By.XPATH,
+                '//*[@id="loginId"]/div[1]/div[2]/div[2]/div[1]/form[1]/div[1]/div[3]/div[2]/div[2]/div[1]/input[1]',
+            )
+        )
+    )
+    user.send_keys(USER)
+    password.send_keys(PASSWORD)
+    time.sleep(60)
+except Exception as e:
+    print("🚀 ~ e:", e)
+
+
 driver.get("https://voters.eci.gov.in/Homepage")
 
 title = driver.title
@@ -85,9 +118,14 @@ df = pd.read_csv("voter-list.csv")
 # Create an empty list to store the status values
 status_list = []
 
+# create an empty list to store the EPIC values
+EPIC_list = []
+EXPAND_VIEW = False
+
 # Iterate over each row in the DataFrame
 for index, row in df.iterrows():
     application_no = row["APPLICATION NO"]
+    Epic_no = "EPIC NOT FOUND"
     if (
         type(application_no) == str
         and application_no != "nan"
@@ -137,10 +175,54 @@ for index, row in df.iterrows():
                     (By.XPATH, '//*[@id="AppHistory"]/td[9]')
                 )
             )
+            track = driver.find_element(By.XPATH, '//*[@id="AppHistory"]/td[9]')
+            retrieved_status = track.text
+            print("⏺️⏺️ ~ retrieved_status:", retrieved_status)
             status_list.append(track.text)
-        except:
+            # time.sleep(1)
+            try:
+                if retrieved_status.upper() in ("EROLL UPDATED", "EROLL_UPDATED"):
+                    # expand_view_click = (
+                    #     WebDriverWait(driver, 2)
+                    #     .until(
+                    #         EC.element_to_be_clickable(
+                    #             (
+                    #                 By.XPATH,
+                    #                 '//*[@id="AppHistory"]/td[10]/b[1]/i[1]',
+                    #             )
+                    #         )
+                    #     )
+                    #     .click()
+                    # )
+                    print("✅✅ ~ retrieved_status:", retrieved_status)
+
+                    if EXPAND_VIEW == False:
+
+                        expand_view_click = driver.find_element(
+                            By.XPATH,
+                            '//*[@id="AppHistory"]/td[10]/b[1]/i[1]',
+                        ).click()
+                        EXPAND_VIEW = True
+
+                    EPIC_cell = WebDriverWait(driver, 2).until(
+                        EC.presence_of_element_located((By.XPATH, '//*[@id="TA7"]'))
+                    )
+                    time.sleep(1)
+                    EPIC = EPIC_cell.text
+                    Epic_no = EPIC
+                    print("🚀 ~ EPIC:", EPIC[15:])
+                    # collapse_view_click = driver.find_element(
+                    #     By.XPATH,
+                    #     '//*[@id="AppHistory"]/td[10]/b[1]/i[1]',
+                    # ).click()
+                    # driver.implicitly_wait(1)
+            except Exception as e:
+                print("🚀 ~ e:", e)
+        except Exception as e:
+            EXPAND_VIEW = False
+            print("🚀 ~ e:", e)
             reference_input.clear()
-            status_list.append("NOT FOUND, CHECK DETAIL")
+            status_list.append("NOT FOUND- CHECK DETAIL")
         # track = driver.find_element(By.XPATH, '//*[@id="AppHistory"]/td[9]')
         # print("🚀 ~ track:", track.text)
         # print(track.text)
@@ -153,10 +235,13 @@ for index, row in df.iterrows():
     else:
         # reference_input.clear()
         status_list.append("CHECK MANUALLY")
+    EPIC_list.append(Epic_no)
 
 
 # Add the status list as a new column to the DataFrame
+print("🚀 ~ status_list:", status_list)
 df["UPDATED STATUS"] = status_list
+df["EPIC NO RETRIEVED"] = EPIC_list
 
 # Save the DataFrame back to CSV
 df.to_csv("voter-list-with-status.csv", index=False)
