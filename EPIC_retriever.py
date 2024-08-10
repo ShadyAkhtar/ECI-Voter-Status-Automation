@@ -120,12 +120,15 @@ status_list = []
 
 # create an empty list to store the EPIC values
 EPIC_list = []
+
+ADDITIONAL_NOTE_LIST = []
 EXPAND_VIEW = False
 
 # Iterate over each row in the DataFrame
 for index, row in df.iterrows():
     application_no = row["APPLICATION NO"]
     Epic_no = "EPIC NOT FOUND"
+    Additional_Note = "---"
     if (
         type(application_no) == str
         and application_no != "nan"
@@ -179,9 +182,9 @@ for index, row in df.iterrows():
             retrieved_status = track.text
             print("⏺️⏺️ ~ retrieved_status:", retrieved_status)
             status_list.append(track.text)
-            # time.sleep(1)
+            time.sleep(1)
             try:
-                if retrieved_status.upper() in ("EROLL UPDATED", "EROLL_UPDATED"):
+                if retrieved_status.upper() in ("EROLL UPDATED",):
                     # expand_view_click = (
                     #     WebDriverWait(driver, 2)
                     #     .until(
@@ -216,6 +219,31 @@ for index, row in df.iterrows():
                     #     '//*[@id="AppHistory"]/td[10]/b[1]/i[1]',
                     # ).click()
                     # driver.implicitly_wait(1)
+                if retrieved_status.upper() in ("FORM REJECTED",):
+                    print("🚀 ~ retrieved_status:", retrieved_status)
+                    if EXPAND_VIEW == False:
+
+                        expand_view_click = driver.find_element(
+                            By.XPATH,
+                            '//*[@id="AppHistory"]/td[10]/b[1]/i[1]',
+                        ).click()
+                        EXPAND_VIEW = True
+                    try:
+                        REJECT_REASON = WebDriverWait(driver, 2).until(
+                            EC.presence_of_element_located((By.XPATH, '//*[@id="TA5"]'))
+                        )
+                        time.sleep(1)
+                        REJECT_NOTE = REJECT_REASON.text
+                    except:
+                        REJECT_REASON = WebDriverWait(driver, 2).until(
+                            EC.presence_of_element_located(
+                                (By.XPATH, '//*[@id="TA14"]')
+                            )
+                        )
+                        time.sleep(1)
+                        REJECT_NOTE = REJECT_REASON.text
+                    Additional_Note = REJECT_NOTE
+                    print("🚀 ~ EPIC:", Additional_Note)
             except Exception as e:
                 print("🚀 ~ e:", e)
         except Exception as e:
@@ -226,22 +254,25 @@ for index, row in df.iterrows():
         # track = driver.find_element(By.XPATH, '//*[@id="AppHistory"]/td[9]')
         # print("🚀 ~ track:", track.text)
         # print(track.text)
-        # driver.implicitly_wait(5000)
+        driver.implicitly_wait(5000)
         # print("I AM HERE ALREADY")
         # status_list.append("crawl")
     elif str(row["APPLICATION STATUS"]).lower() == "eroll updated":
         # reference_input.clear()
         status_list.append("EROLL UPDATED")
+        Epic_no = row["EPIC NO RETRIEVED"]
     else:
         # reference_input.clear()
         status_list.append("CHECK MANUALLY")
     EPIC_list.append(Epic_no)
+    ADDITIONAL_NOTE_LIST.append(Additional_Note)
 
 
 # Add the status list as a new column to the DataFrame
 print("🚀 ~ status_list:", status_list)
 df["UPDATED STATUS"] = status_list
 df["EPIC NO RETRIEVED"] = EPIC_list
+df["ADDITIONAL NOTE"] = ADDITIONAL_NOTE_LIST
 
 # Save the DataFrame back to CSV
 df.to_csv("voter-list-with-status.csv", index=False)
